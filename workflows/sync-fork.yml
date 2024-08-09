@@ -1,0 +1,46 @@
+name: Sync Fork
+
+on:
+  schedule:
+    - cron: '*/30 */2 * * *'  # Runs every 15 minutes
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+
+      - name: Sync fork
+        run: |
+          echo "Starting sync at $(date)"
+          git remote add upstream https://github.com/NVIDIAGameWorks/bridge-remix.git
+          git fetch upstream
+          git checkout main
+          
+          if git merge-base --is-ancestor upstream/main main; then
+            echo "Local branch is up-to-date with upstream"
+          else
+            echo "Changes detected, merging upstream"
+            git merge upstream/main
+            git push origin main
+            echo "Pushed updates to origin"
+          fi
+          
+          echo "Sync completed at $(date)"
+
+      - name: Check for changes
+        run: |
+          if [[ -n $(git status -s) ]]; then
+            echo "Changes were made during sync"
+          else
+            echo "No changes were necessary"
+          fi
