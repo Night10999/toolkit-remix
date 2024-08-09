@@ -22,7 +22,7 @@ jobs:
       - name: Sync fork
         run: |
           echo "Starting sync at $(date)"
-          git remote add upstream https://github.com/NVIDIAGameWorks/bridge-remix.git
+          git remote add upstream https://github.com/NVIDIAGameWorks/toolkit-remix.git
           git fetch upstream
           git checkout main
           
