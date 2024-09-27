@@ -1,6 +1,18 @@
 # Changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.0]
+### Added
+- Added a resizable Stage Manager widget below the viewport
+
+## [1.3.6]
+### Changed
+- Allow property panel to be made smaller than default
+
+## [1.3.5]
+### Changed
+- Expanded initial size of property panel to display widgets better
+
 ## [1.3.4]
 ### Changed
 - Changed repo link

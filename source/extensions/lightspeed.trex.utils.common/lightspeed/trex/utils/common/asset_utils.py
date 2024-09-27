@@ -18,6 +18,7 @@
 __all__ = [
     "get_texture_type_input_name",
     "is_asset_ingested",
+    "is_layer_from_capture",
     "is_mesh_from_capture",
     "is_texture_from_capture",
 ]
@@ -49,12 +50,12 @@ def get_ingested_texture_type(texture_file_path: str | Path) -> TextureTypes | N
     return TEXTURE_TYPE_CONVERTED_SUFFIX_MAP.get(suffixes[0][1:], None)
 
 
-def is_asset_ingested(asset_path: str | Path) -> bool:
+def is_asset_ingested(asset_path: str | Path, ignore_invalid_paths: bool = True) -> bool:
     path = str(asset_path)
 
-    # Invalid paths are ignored
+    # Ignore invalid paths unless set not to ignore
     if not path_utils.is_file_path_valid(path, log_error=False):
-        return True
+        return ignore_invalid_paths
 
     # Ignore assets from captures
     if is_mesh_from_capture(path) or is_texture_from_capture(path):
@@ -66,6 +67,11 @@ def is_asset_ingested(asset_path: str | Path) -> bool:
         return False
 
     return True
+
+
+def is_layer_from_capture(layer_path: str) -> bool:
+    path = Path(layer_path).resolve()
+    return bool(constants.CAPTURE_FOLDER in path.parts or constants.REMIX_CAPTURE_FOLDER in path.parts)
 
 
 def is_mesh_from_capture(asset_path: str) -> bool:

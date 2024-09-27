@@ -2,6 +2,15 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.7.0]
+### Changed
+- Refactored ItemModels to clarify relationship with base omni.ui classes
+- Rename `BaseItemModel` to `_SetValueCallbackManager` to clarify responsibility. Behavior can still be modified via the model, and without needing to subclass BaseItemModel.
+
+## [2.6.1]
+### Changed
+- Use generic centralized LayerTree model
+
 ## [2.6.0]
 ### Changed
 - Use centralized LayerTree widget

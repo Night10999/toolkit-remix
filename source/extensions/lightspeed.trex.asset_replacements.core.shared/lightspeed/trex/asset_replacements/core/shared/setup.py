@@ -32,6 +32,7 @@ from lightspeed.layer_manager.core.data_models import LayerType as _LayerType
 from lightspeed.tool.material.core import ToolMaterialCore as _ToolMaterialCore
 from lightspeed.trex.utils.common.asset_utils import get_texture_type_input_name as _get_texture_type_attribute
 from lightspeed.trex.utils.common.asset_utils import is_asset_ingested as _is_asset_ingested
+from lightspeed.trex.utils.common.asset_utils import is_layer_from_capture as _is_layer_from_capture
 from lightspeed.trex.utils.common.asset_utils import is_mesh_from_capture as _is_mesh_from_capture
 from lightspeed.trex.utils.common.asset_utils import is_texture_from_capture as _is_texture_from_capture
 from lightspeed.trex.utils.common.prim_utils import filter_prims_paths as _filter_prims_paths
@@ -345,8 +346,8 @@ class Setup:
         stacks = prim.GetPrimStack()
         if stacks:
             for stack in stacks:
-                if Setup.ref_path_is_from_capture(stack.layer.realPath):
-                    # this is a mesh from the capture folder
+                if _is_layer_from_capture(stack.layer.realPath):
+                    # The layer is a capture layer
                     return True
         return False
 
@@ -475,8 +476,28 @@ class Setup:
         return _is_mesh_from_capture(path)
 
     @staticmethod
-    def was_the_asset_ingested(path: str) -> bool:
-        return _is_asset_ingested(path)
+    def was_the_asset_ingested(path: str, ignore_invalid_paths: bool = True) -> bool:
+        return _is_asset_ingested(path, ignore_invalid_paths)
+
+    def asset_is_in_project_dir(self, path: str, layer: "Sdf.Layer", include_deps_dir: bool = False) -> bool:
+        # get asset, root, and deps urls
+        asset_path = layer.ComputeAbsolutePath(path)
+        asset_path_url = omni.client.normalize_url(asset_path)
+        asset_path_str = asset_path_url.lower()
+
+        root_path_url = _OmniUrl(_OmniUrl(self._context.get_stage_url()).parent_url)
+        root_path_str = omni.client.normalize_url(str(root_path_url))
+        root_path_str = root_path_str.lower()
+
+        deps_path_url = root_path_url / constants.REMIX_DEPENDENCIES_FOLDER
+        deps_path_url = omni.client.normalize_url(str(deps_path_url))
+        deps_path_str = deps_path_url.lower()
+
+        # return true if the asset is in proj dir and not in /deps
+        result = root_path_str in asset_path_str
+        if not include_deps_dir and deps_path_str in asset_path_str:
+            result = False
+        return result
 
     @staticmethod
     def switch_ref_abs_to_rel_path(stage: Usd.Stage, path: str) -> str:
@@ -575,11 +596,11 @@ class Setup:
             reference=new_ref,
         )
 
-        if UsdSkel.Root(prim):
-            child_prim = prim.GetStage().GetPrimAtPath(child_prim_path)
-            skeleton_prim = prim.GetStage().GetPrimAtPath(prim_path.AppendPath("skel"))
-            skeleton = UsdSkel.Skeleton(skeleton_prim)
+        child_prim = prim.GetStage().GetPrimAtPath(child_prim_path)
+        skeleton_prim = prim.GetStage().GetPrimAtPath(prim_path.AppendPath("skel"))
+        skeleton = UsdSkel.Skeleton(skeleton_prim)
 
+        if UsdSkel.Root(prim) and bool(skeleton):
             # The Joints Attr contains full paths to each bone, we only care about the actual bone's name.
             skel_joints = [joint.split("/")[-1] for joint in skeleton.GetJointsAttr().Get()]
 

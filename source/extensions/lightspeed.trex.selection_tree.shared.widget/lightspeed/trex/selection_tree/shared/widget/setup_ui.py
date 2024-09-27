@@ -29,6 +29,7 @@ import omni.ui as ui
 import omni.usd
 from lightspeed.common import constants
 from lightspeed.trex.asset_replacements.core.shared import Setup as _AssetReplacementsCore
+from lightspeed.trex.asset_replacements.core.shared.usd_copier import copy_usd_asset as _copy_usd_asset
 from lightspeed.trex.utils.common.file_utils import (
     is_usd_file_path_valid_for_filepicker as _is_usd_file_path_valid_for_filepicker,
 )
@@ -97,7 +98,7 @@ class SetupUI:
         self._tree_model = _ListModel(context_name)
         self._tree_delegate = _Delegate()
 
-        self.__on_deferred_tree_model_changed_tack = None
+        self.__on_deferred_tree_model_changed_task = None
 
         self._ignore_tree_selection_changed = False
         self._ignore_select_instance_prim_from_selected_items = False
@@ -432,13 +433,14 @@ class SetupUI:
 
     def _on_tree_model_changed(self, model, __):
         self._tree_delegate.reset()
-        if self.__on_deferred_tree_model_changed_tack:
-            self.__on_deferred_tree_model_changed_tack.cancel()
-        self.__on_deferred_tree_model_changed_tack = asyncio.ensure_future(self._on_deferred_tree_model_changed())
+        if self.__on_deferred_tree_model_changed_task:
+            self.__on_deferred_tree_model_changed_task.cancel()
+        self.__on_deferred_tree_model_changed_task = asyncio.ensure_future(self._on_deferred_tree_model_changed())
 
         self._frame_none.visible = False
         if not model.get_all_items() and self.__on_tree_model_emptied is not None:
             self._frame_none.visible = True
+            # warning: secondary selection may not yet be updated
             self.__on_tree_model_emptied(model)
 
     @omni.usd.handle_exception
@@ -479,13 +481,13 @@ class SetupUI:
             if regex_light_pattern.match(stage_selection_path):
                 selection.extend(item_group_instances)
 
-        if self._previous_tree_selection:
+        if selection and self._previous_tree_selection:
             current_ref_mesh_file = all_items_by_types.get(_ItemReferenceFileMesh, [])
             # we remove instance because they are base on stage selection
             ref_file_mesh_items = []
             # if the last selection if a prim, we don't select the previous ref
             to_add = True
-            if selection and isinstance(selection[-1], _ItemPrim):
+            if isinstance(selection[-1], _ItemPrim):
                 to_add = False
             if to_add:
                 for item in self._previous_tree_selection:
@@ -509,16 +511,17 @@ class SetupUI:
 
         all_visible_items = await self.__deferred_expand(selection)
         if self._tree_view is not None:
-            self._tree_view.selection = selection
+            if self._tree_view.selection != selection:
+                # this will trigger _on_tree_selection_changed()
+                self._tree_view.selection = selection
+            else:
+                # If tree model changed, we want to trigger an update even if selection is the same. This can happen
+                # when model is emptied and selection is also emptied but we haven't updated "previous selection"
+                self._on_tree_selection_changed(selection)
             first_item_prim = sorted([item for item in selection if isinstance(item, _ItemPrim)], key=lambda x: x.path)
             if first_item_prim:
                 await self.scroll_to_item(first_item_prim[0], all_visible_items)
-        self._previous_tree_selection = selection
-        # no need to call it because we change the selection, _on_tree_selection_changed() will call it
-        # self._tree_selection_changed(selection)
         self._ignore_select_instance_prim_from_selected_items = False
-        # for _ in range(2):
-        #     await omni.kit.app.get_app().next_update_async()
         self.__refresh_delegate_gradients()
 
     @omni.usd.handle_exception
@@ -543,7 +546,7 @@ class SetupUI:
 
     def get_selection(self):
         """Return the selection consisting of both the primary and secondary (instance) selections."""
-        if self._tree_view is None or self._frame_none.visible:
+        if self._tree_view is None:
             return []
 
         # if there is a primary selection, add the secondary selection; otherwise just use the secondary
@@ -569,17 +572,17 @@ class SetupUI:
     @_ignore_function_decorator(attrs=["_ignore_tree_selection_changed"])
     def _on_tree_selection_changed(self, items):
         # if the clicked item was an instance, we must handle selection differently for secondary selections
-        clicked_instance_items = [item for item in items if isinstance(item, _ItemInstanceMesh)]
+        selected_instance_items = [item for item in items if isinstance(item, _ItemInstanceMesh)]
         item_meshes = self._tree_model.get_all_items_by_type().get(_ItemMesh, [])
         unrelated_instance_selections = []
 
-        if clicked_instance_items and self._current_tree_pressed_input:
+        if selected_instance_items and self._current_tree_pressed_input:
             # if there are multiple top-level item meshes, save the unrelated instance selections to re-select later
             if len(item_meshes) > 1:
                 # find out which ItemMesh section was selected
                 item_mesh_section_index = 0
                 for index, item_mesh in enumerate(item_meshes):
-                    if self._get_hash(clicked_instance_items[0]) == self._get_hash(item_mesh):
+                    if self._get_hash(selected_instance_items[0]) == self._get_hash(item_mesh):
                         item_mesh_section_index = index
                         break
 
@@ -597,7 +600,7 @@ class SetupUI:
                     # manually create a shift multi-selection between the start and end instance selections
                     all_instance_items = self._tree_model.get_all_items_by_type().get(_ItemInstanceMesh, [])
                     selection_start_index = all_instance_items.index(self._previous_instance_selection[0])
-                    selection_end_index = all_instance_items.index(clicked_instance_items[-1])
+                    selection_end_index = all_instance_items.index(selected_instance_items[-1])
 
                     if selection_start_index > selection_end_index:
                         selection_start_index, selection_end_index = selection_end_index, selection_start_index
@@ -610,7 +613,7 @@ class SetupUI:
             elif self._current_tree_pressed_input["modifier"] == 2:  # ctrl pressed
                 # manually add the previous instance selection item(s) to the current
                 items += self._previous_instance_selection
-        else:
+        elif items:
             # if non-instance item selected, add the instance items back since they were excluded during last iteration
             items += self._previous_instance_selection
 
@@ -828,6 +831,7 @@ class SetupUI:
         self, add_reference_item: Union[_ItemAddNewReferenceFileMesh, _ItemReferenceFileMesh], asset_path: str
     ):
         if not self._core.was_the_asset_ingested(asset_path):
+            layer = self._context.get_stage().GetEditTarget().GetLayer()
             ingest_enabled = bool(
                 omni.kit.app.get_app()
                 .get_extension_manager()
@@ -838,6 +842,7 @@ class SetupUI:
                 message=constants.ASSET_NEED_INGEST_MESSAGE,
                 ok_handler=functools.partial(self.__ignore_warning_ingest_asset, add_reference_item, asset_path),
                 ok_label=constants.ASSET_NEED_INGEST_WINDOW_OK_LABEL,
+                disable_ok_button=not self._core.asset_is_in_project_dir(asset_path, layer),
                 disable_cancel_button=False,
                 disable_middle_button=not ingest_enabled,
                 middle_handler=self._go_to_ingest_tab,
@@ -848,8 +853,44 @@ class SetupUI:
         self._add_new_ref_mesh(add_reference_item, asset_path)
 
     def _add_new_ref_mesh(
-        self, add_reference_item: Union[_ItemAddNewReferenceFileMesh, _ItemReferenceFileMesh], asset_path: str
+        self,
+        add_reference_item: Union[_ItemAddNewReferenceFileMesh, _ItemReferenceFileMesh],
+        asset_path: str,
     ):
+        layer = self._context.get_stage().GetEditTarget().GetLayer()
+        if not self._core.asset_is_in_project_dir(asset_path, layer):
+            if self._core.was_the_asset_ingested(path=asset_path, ignore_invalid_paths=False):
+                # Prompt the user copy the asset into the project folder or cancel
+                _TrexMessageDialog(
+                    title=constants.ASSET_OUTSIDE_OF_PROJ_DIR_TITLE,
+                    message=constants.ASSET_OUTSIDE_OF_PROJ_DIR_MESSAGE,
+                    disable_ok_button=False,
+                    ok_label=constants.ASSET_OUTSIDE_OF_PROJ_DIR_OK_LABEL,
+                    ok_handler=functools.partial(
+                        _copy_usd_asset,
+                        context=self._context,
+                        asset_path=asset_path,
+                        callback_func=lambda x: self._add_new_ref_mesh(
+                            add_reference_item=add_reference_item,
+                            asset_path=x,
+                        ),
+                    ),
+                    disable_middle_button=True,
+                    disable_cancel_button=False,
+                )
+            else:
+                # Prompt the user to ingest the external asset into the project folder
+                _TrexMessageDialog(
+                    title=constants.ASSET_OUTSIDE_OF_PROJ_DIR_AND_NEED_INGEST_TITLE,
+                    message=constants.ASSET_OUTSIDE_OF_PROJ_DIR_AND_NEED_INGEST_MESSAGE,
+                    disable_ok_button=True,
+                    disable_middle_button=False,
+                    middle_handler=self._go_to_ingest_tab,
+                    middle_label=constants.ASSET_NEED_INGEST_WINDOW_MIDDLE_LABEL,
+                    disable_cancel_button=False,
+                )
+            return
+
         stage = self._context.get_stage()
         with omni.kit.undo.group(), self._tree_model.refresh_only_at_the_end():
             new_ref, prim_path = self._core.add_new_reference(
@@ -944,9 +985,9 @@ class SetupUI:
             self.__refresh_delegate_gradients()
 
     def destroy(self):
-        if self.__on_deferred_tree_model_changed_tack:
-            self.__on_deferred_tree_model_changed_tack.cancel()
-        self.__on_deferred_tree_model_changed_tack = None
+        if self.__on_deferred_tree_model_changed_task:
+            self.__on_deferred_tree_model_changed_task.cancel()
+        self.__on_deferred_tree_model_changed_task = None
         self.__on_tree_selection_changed = None
         self.__on_tree_model_emptied = None
         _reset_default_attrs(self)

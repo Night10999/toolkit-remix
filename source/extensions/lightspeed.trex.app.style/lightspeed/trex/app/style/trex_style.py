@@ -52,6 +52,7 @@ _DARK_85 = 0xD9000000
 _TRUE_DARK = 0xFF000000
 
 _GREY_32 = 0xFF202020
+_GREY_40 = 0xFF282828
 _GREY_42 = 0xFF2A2A2A
 _GREY_50 = 0xFF303030
 _GREY_60 = 0xFF3C3C3C
@@ -75,10 +76,12 @@ _WHITE_100 = 0xFFFFFFFF
 
 _YELLOW = 0xFF00FFFF
 
+_PALE_ORANGE_40 = 0x4D4682B4
+_PALE_ORANGE_60 = 0x994682B4
 _ORANGE = 0xFF00AEFF
 
 _DEFAULT_FIELD_READ_VALUE = {
-    "background_color": _DARK_00,  # 01 for alpha or it will show a default color
+    "background_color": _DARK_00,
     "color": 0x90FFFFFF,
     "border_width": 1,
     "border_radius": 5,
@@ -89,6 +92,24 @@ _DEFAULT_FIELD_READ_VALUE = {
 _DEFAULT_FIELD_READ_ERROR_VALUE = {
     "background_color": _RED_05,
     "color": 0xFF7868FF,
+    "border_width": 1,
+    "border_radius": 5,
+    "border_color": 0x0DFFFFFF,
+    "font_size": 14,
+}
+
+_DEFAULT_FIELD_MIXED_VALUE = {
+    "background_color": _PALE_ORANGE_60,
+    "color": _WHITE_60,
+    "border_width": 1,
+    "border_radius": 5,
+    "border_color": _WHITE_20,
+    "font_size": 14,
+}
+
+_DEFAULT_FIELD_READ_ONLY_MIXED_VALUE = {
+    "background_color": _PALE_ORANGE_40,
+    "color": 0x90FFFFFF,
     "border_width": 1,
     "border_radius": 5,
     "border_color": 0x0DFFFFFF,
@@ -351,6 +372,7 @@ current_dict.update(
         "Image::Frame": {"image_url": _get_icons("frame"), "color": _WHITE_60},
         "Image::Frame:hovered": {"image_url": _get_icons("frame"), "color": _WHITE_100},
         "Image::Bookmark": {"image_url": _get_icons("bookmark"), "color": _WHITE_80},
+        "Image::Mixed": {"image_url": _get_icons("mixed_checkbox"), "color": _WHITE_100},
         "Image::Nickname": {"image_url": _get_icons("nickname"), "color": _WHITE_60},
         "Image::Nickname:hovered": {"image_url": _get_icons("nickname"), "color": _WHITE_100},
         "Image::SubtractDisabled": {"image_url": _get_icons("subtract"), "color": _WHITE_30},
@@ -411,11 +433,17 @@ current_dict.update(
         "Image::ModOpenHovered": {"image_url": _get_icons("mod_open"), "color": _BLUE_ACTION},
         "Image::ModRemasterHovered": {"image_url": _get_icons("mod_remaster"), "color": _BLUE_ACTION},
         "Image::Drag": {"image_url": _get_icons("drag_handle"), "color": _WHITE_30},
+        "Image::Capture": {"image_url": _get_icons("database"), "color": _WHITE_80},
         "Image::Collection": {"image_url": _get_icons("link"), "color": _WHITE_80},
         "Image::Mesh": {"image_url": _get_icons("hexagon-outline"), "color": _WHITE_80},
         "Image::GeomSubset": {"image_url": _get_icons("hexagon-multiple-outline"), "color": _WHITE_80},
         "Image::Categories": {"image_url": _get_icons("categories"), "color": _WHITE_100},
         "Image::Categories:hovered": {"image_url": _get_icons("categories"), "color": _WHITE_60},
+        "Image::CylinderLightStatic": {"image_url": _get_icons("light_cylinder"), "color": _WHITE_60},
+        "Image::DiskLightStatic": {"image_url": _get_icons("light_disc"), "color": _WHITE_60},
+        "Image::DistantLightStatic": {"image_url": _get_icons("light_distant"), "color": _WHITE_60},
+        "Image::RectLightStatic": {"image_url": _get_icons("light_rect"), "color": _WHITE_60},
+        "Image::SphereLightStatic": {"image_url": _get_icons("light_point"), "color": _WHITE_60},
         "Image::ShowInViewport": {
             "image_url": _get_icons("axis-arrow"),
             "color": _WHITE_20,
@@ -453,6 +481,7 @@ current_dict.update(
             "font_size": 16,
             "image_url": _get_fonts("NVIDIASans_A_Md"),
         },  # checked == hovered
+        "Label::RemixAttrLabel": {"font_size": 14},
         "Label::WizardTitle": {
             "color": _WHITE_80,
             "font_size": 18,
@@ -647,25 +676,24 @@ current_dict.update(
             "color": _RED_80,
             "font_size": 14,
         },
-        "PropertiesWidgetField": {
-            "background_color": _GREY_50,  # 01 for alpha or it will show a default color
-            "color": _WHITE_80,
-            "border_width": 1,
-            "border_radius": 5,
-            "border_color": _WHITE_20,
+        "ColorsWidgetFieldRead": {
+            "background_color": _DARK_00,
+            "color": 0x90FFFFFF,
+            "border_color": 0x0,
             "font_size": 14,
         },
-        "PropertiesWidgetField:hovered": {
-            "background_color": _GREY_50,
-        },
-        "ColorsWidgetFieldRead": {
-            "background_color": _DARK_00,  # 01 for alpha or it will show a default color
+        "ColorsWidgetFieldReadMixed": {
+            "background_color": _PALE_ORANGE_40,
             "color": 0x90FFFFFF,
             "border_color": 0x0,
             "font_size": 14,
         },
         "ColorWidget::ColorsWidgetFieldRead": {
             "border_color": _WHITE_20,
+            "border_radius": 5,
+        },
+        "ColorWidget::ColorsWidgetFieldReadMixed": {
+            "background_color": _PALE_ORANGE_40,
             "border_radius": 5,
         },
         "Rectangle::ColorsWidgetSeparator": {
@@ -690,14 +718,60 @@ current_dict.update(
             "border_color": _WHITE_40,
             "font_size": 14,
         },
+        "FloatSliderFieldMixed": {
+            "draw_mode": ui.SliderDrawMode.FILLED,
+            "background_color": _GREY_50,
+            "secondary_color": _PALE_ORANGE_60,
+            "border_width": 1,
+            "border_radius": 5,
+            "border_color": _WHITE_20,
+            "font_size": 14,
+        },
+        "FloatSliderFieldRead": {
+            "draw_mode": ui.SliderDrawMode.FILLED,
+            "background_color": _GREY_70,
+            "secondary_color": _BLUE_SEMI_SELECTED,
+            "border_width": 1,
+            "border_radius": 5,
+            "border_color": _WHITE_20,
+            "font_size": 14,
+        },
+        "FloatSliderFieldReadMixed": {
+            "draw_mode": ui.SliderDrawMode.FILLED,
+            "background_color": _GREY_70,
+            "secondary_color": _PALE_ORANGE_40,
+            "border_width": 1,
+            "border_radius": 5,
+            "border_color": _WHITE_20,
+            "font_size": 14,
+        },
+        "FloatSliderFieldSelectedMixed": {
+            "draw_mode": ui.SliderDrawMode.FILLED,
+            "background_color": _GREY_50,
+            "secondary_color": _PALE_ORANGE_60,
+            "border_width": 1,
+            "border_radius": 5,
+            "border_color": _WHITE_40,
+            "font_size": 14,
+        },
         "Rectangle::SelectableToolTipBackground": _DEFAULT_FIELD_READ_VALUE,
         "Rectangle::SelectableToolTipBackground:hovered": _DEFAULT_FIELD_READ_HOVERED_VALUE,
+        "PropertiesWidgetField": {
+            "background_color": _GREY_50,
+            "color": _WHITE_80,
+            "border_width": 1,
+            "border_radius": 5,
+            "border_color": _WHITE_20,
+            "font_size": 14,
+        },
+        "PropertiesWidgetField:hovered": {
+            "background_color": _BLUE_HOVERED,
+        },
+        "PropertiesWidgetFieldMixed": _DEFAULT_FIELD_MIXED_VALUE,
         "PropertiesWidgetFieldRead": _DEFAULT_FIELD_READ_VALUE,
         "PropertiesWidgetFieldRead:hovered": _DEFAULT_FIELD_READ_HOVERED_VALUE,
-        "PropertiesWidgetFieldBoolRead": {
-            "background_color": _GREY_70,
-            "color": _WHITE_30,
-        },
+        "PropertiesWidgetFieldReadMixed": _DEFAULT_FIELD_READ_ONLY_MIXED_VALUE,
+        # Note: cannot be both Read (only) and Selected for editing
         "PropertiesWidgetFieldSelected": {
             "background_color": _DARK_40,
             "color": _WHITE_100,
@@ -705,6 +779,31 @@ current_dict.update(
             "border_radius": 5,
             "border_color": _WHITE_40,
             "font_size": 14,
+        },
+        "PropertiesWidgetFieldSelectedMixed": {  # selected + mixed
+            "background_color": _PALE_ORANGE_60,
+            "color": _WHITE_100,
+            "border_width": 1,
+            "border_radius": 5,
+            "border_color": _WHITE_40,
+            "font_size": 14,
+        },
+        # Note: bool field cannot be "selected"
+        "PropertiesWidgetFieldBool": {
+            "background_color": _GREY_32,  # make visible against _GREY_50 background
+            "color": _WHITE_30,
+        },
+        "PropertiesWidgetFieldBoolRead": {
+            "background_color": _GREY_70,
+            "color": _WHITE_30,
+        },
+        "PropertiesWidgetFieldBoolMixed": {
+            "background_color": _PALE_ORANGE_60,
+            "color": _WHITE_30,
+        },
+        "PropertiesWidgetFieldBoolReadMixed": {
+            "background_color": _PALE_ORANGE_40,
+            "color": _WHITE_30,
         },
         "PropertiesWidgetLabel": {
             "color": _WHITE_70,
@@ -841,6 +940,11 @@ current_dict.update(
             "border_width": 1.5,
         },
         "Window": {"background_color": 0xFF0F0F0F},
+        "Rectangle::TransparentBackground": {"background_color": 0x0},
+        "Rectangle::TabBackground": {"background_color": _GREY_42},
+        "Rectangle::Row": {"background_color": _GREY_42},
+        "Rectangle::AlternateRow": {"background_color": _GREY_40},
+        "Rectangle::ColumnSeparator": {"background_color": _WHITE_10},
     }
 )
 style.default = current_dict

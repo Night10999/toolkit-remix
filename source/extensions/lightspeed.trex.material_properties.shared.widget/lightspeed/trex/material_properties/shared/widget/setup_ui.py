@@ -29,6 +29,7 @@ import omni.kit.app
 from lightspeed.common import constants as _constants
 from lightspeed.tool.material.core import ToolMaterialCore as _ToolMaterialCore
 from lightspeed.trex.asset_replacements.core.shared import Setup as _AssetReplacementsCore
+from lightspeed.trex.asset_replacements.core.shared.usd_copier import copy_non_usd_asset as _copy_non_usd_asset
 from lightspeed.trex.contexts import get_instance as _trex_contexts_instance
 from lightspeed.trex.contexts.setup import Contexts as _Contexts
 from lightspeed.trex.material.core.shared import Setup as _MaterialCore
@@ -74,7 +75,7 @@ class TextureDialog(ui.Window):
 
 class SetupUI:
 
-    COLUMN_WIDTH_PERCENT = 40
+    MATERIAL_LABEL_NAME_SIZE = 32
 
     def __init__(self, context_name: str):
         """Nvidia StageCraft Viewport UI"""
@@ -161,7 +162,6 @@ class SetupUI:
                 with ui.VStack():
                     ui.Spacer(height=ui.Pixel(8))
                     with ui.HStack(height=ui.Pixel(24)):
-                        ui.Spacer(width=ui.Pixel(50), height=0)
                         ui.Label(
                             "Material:",
                             name="PropertiesWidgetLabel",
@@ -169,7 +169,7 @@ class SetupUI:
                             width=ui.Pixel(30),
                         )
                         ui.Spacer(width=ui.Pixel(8), height=0)
-                        with ui.ZStack(width=ui.Percent(60)):
+                        with ui.ZStack():
                             ui.Rectangle(width=ui.Percent(100))
                             with ui.HStack(height=ui.Pixel(24)):
                                 ui.Spacer(width=ui.Pixel(8), height=0)
@@ -179,13 +179,15 @@ class SetupUI:
                                     identifier="material_label",
                                     alignment=ui.Alignment.LEFT_CENTER,
                                     tooltip="",
-                                    width=ui.Percent(80),
+                                    elided_text=True,
                                     mouse_pressed_fn=lambda x, y, b, m: self._show_copy_menu(b),
                                 )
+                        ui.Spacer(width=ui.Pixel(8), height=0)
                         ui.Image(
                             "",
                             name="MenuBurger",
                             height=ui.Pixel(24),
+                            width=ui.Pixel(24),
                             mouse_pressed_fn=lambda x, y, b, m: self.__show_material_menu(),
                         )
                     ui.Spacer(height=ui.Pixel(8))
@@ -201,7 +203,6 @@ class SetupUI:
                     ui.Spacer(height=ui.Pixel(8))
                     self._material_properties_widget = _MaterialPropertyWidget(
                         self._context_name,
-                        tree_column_widths=[ui.Percent(self.COLUMN_WIDTH_PERCENT)],
                         create_color_space_attributes=False,
                         field_builders=self.get_custom_field_builders(),
                     )
@@ -256,7 +257,7 @@ class SetupUI:
         for item in items:
             for value_model in item.value_models:
                 if usd_properties_utils.get_type_name(value_model.metadata) in [Sdf.ValueTypeNames.Asset]:
-                    value_model.set_callback_pre_set_value(self.__check_asset_was_ingested)
+                    value_model.set_callback_pre_set_value(self.__check_asset_was_ingested_and_in_proj_dir)
 
     def _texture_assignment(self, selected_paths, items, allow_dialog_skip=True, basename=None, found_paths=None):
         """
@@ -289,7 +290,7 @@ class SetupUI:
             if similar_len == 0:
                 continue
             if _TEXTURE_TYPE_INPUT_MAP[texture_type] not in texture_dict and similar_len >= base_parts_len - 1:
-                texture_dict[_TEXTURE_TYPE_INPUT_MAP[texture_type]] = path
+                texture_dict[_TEXTURE_TYPE_INPUT_MAP[texture_type].replace("inputs:", "")] = path
 
         if not texture_dict:
             carb.log_warn("Could not determine texture type(s) or no textures found. Skipping...")
@@ -316,6 +317,7 @@ class SetupUI:
                         if checked_boxes and display_name not in checked_boxes:
                             continue
                         if display_name in paths:
+                            value_model.block_set_value(False)
                             rel_path = omni.client.normalize_url(
                                 usd.make_path_relative_to_current_edit_target(paths[display_name], stage=self._stage)
                             ).replace("\\", "/")
@@ -400,7 +402,7 @@ class SetupUI:
     def __ignore_warning_ingest_asset(self, callback, value):
         callback(value)
 
-    def __check_asset_was_ingested(self, callback, value):
+    def __check_asset_was_ingested_and_in_proj_dir(self, callback, value):
         layer = self._stage.GetEditTarget().GetLayer()
         try:
             abs_new_asset_path = omni.client.normalize_url(layer.ComputeAbsolutePath(value))
@@ -409,6 +411,12 @@ class SetupUI:
             # use the attribute, but override the value (like when we set metadata).
             callback(value)
             return
+
+        # If the file path is not in general valid, use callback and return
+        if not self._asset_replacement_core.is_file_path_valid(abs_new_asset_path, layer, log_error=False):
+            callback(value)
+            return
+
         if not self._asset_replacement_core.was_the_asset_ingested(abs_new_asset_path):
             ingest_enabled = bool(
                 omni.kit.app.get_app()
@@ -420,10 +428,29 @@ class SetupUI:
                 message=_constants.ASSET_NEED_INGEST_MESSAGE,
                 ok_handler=functools.partial(self.__ignore_warning_ingest_asset, callback, value),
                 ok_label=_constants.ASSET_NEED_INGEST_WINDOW_OK_LABEL,
+                disable_ok_button=not self._asset_replacement_core.asset_is_in_project_dir(
+                    path=abs_new_asset_path, layer=layer
+                ),
                 disable_cancel_button=False,
                 disable_middle_button=not ingest_enabled,
                 middle_label=_constants.ASSET_NEED_INGEST_WINDOW_MIDDLE_LABEL,
                 middle_handler=self._go_to_ingest_tab,
+            )
+            return
+        if not self._asset_replacement_core.asset_is_in_project_dir(path=abs_new_asset_path, layer=layer):
+            _TrexMessageDialog(
+                title=_constants.ASSET_OUTSIDE_OF_PROJ_DIR_TITLE,
+                message=_constants.ASSET_OUTSIDE_OF_PROJ_DIR_MESSAGE,
+                disable_ok_button=False,
+                ok_label=_constants.ASSET_OUTSIDE_OF_PROJ_DIR_OK_LABEL,
+                ok_handler=functools.partial(
+                    _copy_non_usd_asset,
+                    context=self._context,
+                    asset_path=abs_new_asset_path,
+                    callback_func=callback,
+                ),
+                disable_middle_button=True,
+                disable_cancel_button=False,
             )
             return
         callback(value)
@@ -457,8 +484,14 @@ class SetupUI:
             self.__on_material_changed()
 
     @staticmethod
-    def _shorten_string(input_string, size, delimiter):
-        return input_string[-size:].partition(delimiter)[-1] if delimiter in input_string else input_string
+    def _shorten_material_id_string(input_string, size, delimiter):
+        """Give the most interesting part of a prim path"""
+        if len(input_string) > size:
+            input_string = input_string[-size:]
+            # try not to crop in the middle of a parent...
+            input_string = input_string.partition(delimiter)[-1] if delimiter in input_string else input_string
+            return "..." + delimiter + input_string
+        return input_string
 
     @staticmethod
     def _concat_list_to_string(items):
@@ -491,23 +524,27 @@ class SetupUI:
             # we select the material
             self._selected_prims = [item.prim for item in items if isinstance(item, _ItemPrim)]
             if self._selected_prims:
-                materials = set()
+                materials = []
                 for prim in self._selected_prims or []:
                     for mat in self._core.get_materials_from_prim(prim):
-                        materials.add(mat)
-                materials = list(materials)
+                        if mat not in materials:
+                            materials.append(mat)
                 if materials:
                     asyncio.ensure_future(self._refresh_material_menu())
+                    self._material_properties_widget.show(True)
+                    # TODO: Selection is not ordered by user but by tree view position, so displaying only one value
+                    #  value where user cannot control which one is shown is not the best UX.
+                    self._material_properties_widget.refresh(materials)
+                    material_label_text = self._shorten_material_id_string(
+                        str(materials[0]), self.MATERIAL_LABEL_NAME_SIZE, "/"
+                    )
                     if len(materials) == 1:
-                        # when we have just one material available, show properties
-                        self._material_properties_widget.show(True)
-                        self._material_properties_widget.refresh(materials)
-                        self._set_material_label(str(materials[0]))
+                        self._set_material_label(material_label_text)
                         self._current_single_material = materials[0]
                     else:
-                        # hide properties when multiple prims selected as this isnt supported yet
-                        self._material_properties_widget.show(False)  # to disable the listener
-                        self._set_material_label("Multiple Selected", SetupUI._concat_list_to_string(materials))
+                        multiple_info_text = f"Multiple Selected (editing all, displaying {material_label_text})"
+                        multiple_info_details = multiple_info_text + "\n\n" + SetupUI._concat_list_to_string(materials)
+                        self._set_material_label(multiple_info_text, tooltip=multiple_info_details)
                         self._current_single_material = None
 
                     return
@@ -517,7 +554,7 @@ class SetupUI:
         self._set_material_label("None")
 
     def _set_material_label(self, label, tooltip=None):
-        self._current_material_label.text = SetupUI._shorten_string(label, 32, "/")
+        self._current_material_label.text = label
         self._current_material_label.tooltip = label if tooltip is None else tooltip
 
     def _has_material_override(self, prims: List[Usd.Prim]) -> bool:

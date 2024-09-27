@@ -15,14 +15,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add Data Migration documentation
 - Adding tests for Remix Categories
 - Adding tests for layer validation
+- REMIX-3402: Added skeleton and example implementation for the Stage Manager
+- REMIX-3051: Configured the save prompt to open during stage unloads with unsaved changes
+- REMIX-3052: Added a new "reload last stage" workfile menu item
+- REMIX-3403: Setup Stage Manager Core & Schema
+- REMIX-3404: Added Stage Manager Widget
+- REMIX-3440: Implemented USD Tree Plugins
+- REMIX-2874: Added a scan folder dialog for importing
+- REMIX-3443: Implemented USD Visibility Plugins
+- REMIX-2518: Added external asset prevention/copying functionality
+- REMIX-2907: Added warning when invalid file types are dropped for ingestion
+- REMIX-3441: Implemented Lights interaction plugins
+- REMIX-3214: Checking layer type at project file import validation
+- REMIX-3215: Checking layer type at mod file import validation
+- REMIX-3477: Implemented USD listeners for the stage manager
+- REMIX-3478: Implemented selection syncing for the stage manager
+- REMIX-3479: Added the ability to deactivate interaction plugins when not visible
+- REMIX-3398: Added settings for enabling Sentry reporting
+- REMIX-3536: Implemented a widget to display captured & replaced prims
+- REMIX-3535: Implemented a filter to display captured & replaced prims
+- REMIX-2605: Added support for editing multiple meshes, materials or lights
+- REMIX-2605: Added support for editing multiple mesh xforms
+- REMIX-3541: Docked Stage Manager in Modding layout
 
 ### Changed
-- REMIX-3401: Changed all usages of factories to use the Centralized Generic factory
 
 ### Fixed
 - REMIX-3401: Fixed hot-reload by allowing reuse of validators
 - REMIX-3058: Fixed material file path tooltips and copy menus
 - Fixed changelog checker with type casting to support semantic versioning
+- Corrected documentation typo
+- REMIX-3385: Fixing texture set assignment
+- REMIX-2874: Improved look of scan file window
+- REMIX-2605: Fixed some property widget styling
 
 ### Removed
 
@@ -91,6 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Create 2024.4.0-RC.2 build
 - REMIX-2593: Added a centralized TreeWidget with additional logic
 - REMIX-3075: Added a layer type check in validation
+- REMIX-2874: Added a scan folder dialog for importing
 
 ### Changed
 - REMIX-2593: Changed the LayerTree widget to work with multiselect

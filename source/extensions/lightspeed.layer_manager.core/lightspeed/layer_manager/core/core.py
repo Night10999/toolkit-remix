@@ -835,13 +835,27 @@ class LayerManagerCore:
                 hashes[match.group(3)] = prim.path
         return hashes
 
-    def open_stage(self, layer_identifier: str, callback: Callable[[], None] = None):
+    def open_stage(self, layer_identifier: str, callback: Callable[[], None] = None) -> str:
+        # Obtain the previous stage root layer identifier if not anonymous
+        prev_stage_root_layer_identifier = self.__context.get_stage().GetRootLayer().identifier
+        if "anon" in prev_stage_root_layer_identifier:
+            prev_stage_root_layer_identifier = None
+
         omni.kit.window.file.open_stage(layer_identifier)
         if callback:
             callback()
 
-    def create_new_stage(self):
+        return prev_stage_root_layer_identifier
+
+    def create_new_stage(self) -> str:
+        # Obtain the previous stage root layer identifier if not anonymous
+        prev_stage_root_layer_identifier = self.__context.get_stage().GetRootLayer().identifier
+        if "anon" in prev_stage_root_layer_identifier:
+            prev_stage_root_layer_identifier = None
+
         self.__context.new_stage_with_callback(self._on_new_stage_created)
+
+        return prev_stage_root_layer_identifier
 
     def _on_new_stage_created(self, result: bool, error: str):
         asyncio.ensure_future(self._deferred_startup(self.__context))
@@ -858,6 +872,20 @@ class LayerManagerCore:
         # set some metadata
         root_layer = stage.GetRootLayer()
         self.set_custom_data_layer_type(root_layer, LayerType.workfile)
+
+    def is_valid_layer_type(self, file_path: str, layer_type: LayerType = None) -> bool:
+        """Check if layer type is of the given type or a Remix layer type."""
+        layer = Sdf.Layer.FindOrOpen(file_path)
+        if not layer:
+            return False
+        input_layer_type = self.get_custom_data_layer_type(layer)
+        if input_layer_type is None:
+            return False
+        if input_layer_type and input_layer_type != layer_type.value:
+            return False
+        if not layer_type and input_layer_type:
+            return any(input_layer_type == ltype.value for ltype in LayerType)
+        return True
 
     def destroy(self):
         if self._default_attr:

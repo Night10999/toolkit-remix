@@ -1,6 +1,30 @@
 ﻿# Changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.5]
+### Added
+- Added styling for Stage Manager
+
+## [1.3.4]
+### Added
+- Added Mixed style for Color and Slider widgets
+
+## [1.3.3]
+### Added
+- Added Mixed style for PropertyFields
+
+## [1.3.2]
+### Added
+- Added a style for the capture icon
+
+## [1.3.1]
+### Added
+- Added static versions of the various light image styles
+
+## [1.3.0]
+### Added
+- Added TransparentBackground style
+
 ## [1.2.3]
 ### Added
 - Added styling for Categories Icon
